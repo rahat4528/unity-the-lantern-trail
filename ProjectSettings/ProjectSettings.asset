@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 26
+  productGUID: 9b2d8e4f1a3c5e7b0d2f4a6c8e0b2d4f
+  AndroidProfiler: 0
+  AndroidFilterTouchesWhenObscured: 0
+  AndroidEnableSentry: 0
+  defaultScreenOrientation: 3
+  targetDevice: 2
+  useOnDemandResources: 0
+  accelerometerFrequency: 60
+  companyName: WandererStudios
+  productName: The Lantern Trail
+  defaultCursor: {fileID: 0}
+  cursorHotspot: {x: 0, y: 0}
+  m_SplashScreenBackgroundColor: {r: 0.05, g: 0.04, b: 0.1, a: 1}
+  bundleVersion: 1.0.0
+  applicationIdentifier:
+    Android: com.wandererstudios.lanterntrail
+    Standalone: com.wandererstudios.lanterntrail
+  AndroidMinSdkVersion: 24
+  AndroidTargetSdkVersion: 34
+  androidTargetArchitectures: 3
+  androidBuildApkPerCpuArchitecture: 0
+  AndroidApplicationSymbols: 0
+  AndroidAppBundle: 1
+  spritePackerPolicy: 
+  stripEngineCode: 1
+  m_ApiCompatibilityLevel: 6
+  activeInputHandler: 0
