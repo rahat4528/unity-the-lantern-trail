@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+<meta name="theme-color" content="#1a0a2e"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Lantern Trail"/>
+<link rel="manifest" href="manifest.webmanifest"/>
+<link rel="icon" type="image/png" href="icon-192.png"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<title>The Lantern Trail - Android Adventure</title>
+<style>
+/* ───────────────────────────────────────────────
+   RESET & BASE
+─────────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#0d0d1a;font-family:'Segoe UI',system-ui,sans-serif}
+canvas{display:block;touch-action:none}
+
+/* ───────────────────────────────────────────────
+   SCREENS (layered over canvas)
+─────────────────────────────────────────────── */
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .4s;z-index:10}
+.screen.hidden, .hidden{display:none !important;opacity:0 !important;pointer-events:none !important}
+
+/* ── FADE OVERLAY ── */
+#fade{position:fixed;inset:0;background:#0d0d1a;z-index:99;transition:opacity .5s;pointer-events:none;opacity:0}
+#fade.clear{opacity:0}
+#fade.opaque{opacity:1}
+
+/* ── MAIN MENU ── */
+#menuScreen{background:radial-gradient(ellipse at 50% 70%, #2a1040 0%, #0d0d1a 70%)}
+.menu-title{font-size:clamp(2.2rem,7vw,4rem);font-weight:900;letter-spacing:.05em;
+  background:linear-gradient(135deg,#f5c842,#ff8c42,#f5c842);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:.3em;
+  text-shadow:none;filter:drop-shadow(0 0 18px #f5c84266)}
+.menu-sub{color:#c8a87a;font-size:clamp(.9rem,3vw,1.15rem);margin-bottom:2.8em;text-align:center;letter-spacing:.15em;opacity:.85}
+.lantern-deco{font-size:3.5rem;margin-bottom:.6em;animation:lanternFloat 3s ease-in-out infinite}
+@keyframes lanternFloat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-12px) rotate(4deg)}}
+
+/* ── BUTTONS ── */
+.btn{display:block;width:min(88%,280px);padding:.9em 1.4em;margin:.45em auto;border:none;border-radius:14px;
+  font-size:clamp(1rem,3.5vw,1.2rem);font-weight:700;cursor:pointer;letter-spacing:.08em;
+  transition:transform .12s,box-shadow .12s,filter .12s;outline:none}
+.btn:active{transform:scale(.95)}
+.btn-primary{background:linear-gradient(135deg,#f5c842,#e8941a);color:#1a0a00;
+  box-shadow:0 4px 24px #f5c84255}
+.btn-primary:hover{filter:brightness(1.12);box-shadow:0 6px 32px #f5c84288}
+.btn-secondary{background:rgba(255,255,255,.1);color:#e8d5b0;border:1.5px solid rgba(255,215,100,.3)}
+.btn-secondary:hover{background:rgba(255,255,255,.18)}
+.btn-danger{background:rgba(200,60,60,.25);color:#ffaaaa;border:1.5px solid rgba(200,60,60,.4)}
+
+/* ── HUD ── */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:20}
+#hudTop{position:absolute;top:env(safe-area-inset-top,12px);left:0;right:0;
+  padding:10px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+#objectiveBox{background:rgba(0,0,0,.55);backdrop-filter:blur(8px);border:1px solid rgba(255,215,100,.25);
+  border-radius:12px;padding:10px 16px;max-width:60%;pointer-events:none}
+#objText{color:#f5c842;font-size:clamp(.75rem,2.8vw,1rem);font-weight:700;letter-spacing:.04em}
+#progressText{color:#c8a87a;font-size:clamp(.65rem,2.2vw,.85rem);margin-top:3px}
+#pauseBtn{width:48px;height:48px;border-radius:12px;background:rgba(0,0,0,.55);
+  backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);color:#fff;
+  font-size:1.4rem;cursor:pointer;pointer-events:all;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+
+/* Touch controls */
+#controls{position:absolute;bottom:env(safe-area-inset-bottom,16px);left:0;right:0;
+  padding:0 20px;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none}
+#joystickZone{width:140px;height:140px;pointer-events:all}
+#joystickBase{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.08);
+  border:2px solid rgba(255,255,255,.18);position:relative;margin:10px}
+#joystickKnob{width:52px;height:52px;border-radius:50%;background:rgba(255,215,100,.7);
+  border:2px solid rgba(255,215,100,.9);position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);transition:box-shadow .15s;
+  box-shadow:0 0 16px #f5c84244}
+#interactBtn{width:80px;height:80px;border-radius:50%;background:rgba(245,200,66,.2);
+  border:2.5px solid rgba(245,200,66,.7);color:#f5c842;font-size:.75rem;font-weight:700;
+  letter-spacing:.06em;cursor:pointer;pointer-events:all;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:2px;opacity:0;transition:opacity .25s,transform .12s;
+  text-align:center;line-height:1.2}
+#interactBtn.visible{opacity:1}
+#interactBtn:active{transform:scale(.9)}
+#interactIcon{font-size:1.4rem}
+
+/* Hint button */
+#hintBtn{position:absolute;bottom:calc(env(safe-area-inset-bottom,16px) + 150px);left:50%;
+  transform:translateX(-50%);background:rgba(100,200,255,.15);border:1.5px solid rgba(100,200,255,.4);
+  color:#aadeff;font-size:.8rem;padding:.45em 1.2em;border-radius:20px;cursor:pointer;
+  pointer-events:all;letter-spacing:.06em}
+
+/* Location badge */
+#locationBadge{position:absolute;top:calc(env(safe-area-inset-top,12px) + 68px);left:50%;
+  transform:translateX(-50%);background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,215,100,.2);border-radius:20px;padding:.35em 1.2em;
+  color:#c8a87a;font-size:clamp(.65rem,2.2vw,.85rem);letter-spacing:.12em;white-space:nowrap}
+
+/* Desktop Controls Helper */
+#desktopHelp{position:absolute;bottom:calc(env(safe-area-inset-bottom,16px) + 8px);left:50%;
+  transform:translateX(-50%);background:rgba(0,0,0,.7);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,215,100,.3);border-radius:20px;padding:.4em 1.2em;
+  color:#e8d5b0;font-size:clamp(.65rem,1.8vw,.82rem);letter-spacing:.04em;
+  white-space:nowrap;pointer-events:none;z-index:21;display:flex;align-items:center;gap:6px}
+#desktopHelp kbd{background:rgba(255,215,100,.22);color:#f5c842;padding:2px 7px;border-radius:4px;font-weight:700;border:1px solid rgba(255,215,100,.4)}
+
+/* ── PAUSE MENU ── */
+#pauseScreen{background:rgba(0,0,0,.75);backdrop-filter:blur(12px)}
+.pause-title{color:#f5c842;font-size:clamp(1.5rem,5vw,2.2rem);font-weight:800;
+  letter-spacing:.08em;margin-bottom:1.6em;text-align:center}
+
+/* ── NOTE PANEL ── */
+#notePanel{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(16px);
+  z-index:50;display:flex;align-items:center;justify-content:center;transition:opacity .3s}
+#notePanel.hidden{opacity:0;pointer-events:none}
+.note-card{background:linear-gradient(145deg,#2a1e0a,#1a1205);border:1.5px solid rgba(245,200,66,.3);
+  border-radius:20px;padding:2em 2.2em;max-width:min(90%,480px);width:100%;
+  box-shadow:0 0 40px #f5c84222}
+.note-card h2{color:#f5c842;font-size:clamp(1.1rem,4vw,1.5rem);margin-bottom:.7em;text-align:center}
+.note-card p{color:#d4b890;font-size:clamp(.85rem,3vw,1.05rem);line-height:1.7;text-align:left}
+.note-close{margin-top:1.5em;width:100%}
+
+/* ── JOURNAL ── */
+#journalScreen{background:rgba(0,0,0,.9);backdrop-filter:blur(12px);z-index:45}
+.journal-title{color:#f5c842;font-size:clamp(1.3rem,4.5vw,1.9rem);font-weight:800;margin-bottom:1em;text-align:center}
+#journalList{width:min(90%,480px);max-height:60vh;overflow-y:auto;margin-bottom:1.2em}
+.journal-entry{background:rgba(255,255,255,.06);border:1px solid rgba(245,200,66,.15);
+  border-radius:12px;padding:.9em 1.2em;margin-bottom:.7em;text-align:left}
+.journal-entry h3{color:#f5c842;font-size:.95rem;margin-bottom:.35em}
+.journal-entry p{color:#b8997a;font-size:.82rem;line-height:1.6}
+
+/* ── SETTINGS ── */
+#settingsScreen{background:rgba(0,0,0,.85);backdrop-filter:blur(12px)}
+.settings-title{color:#f5c842;font-size:clamp(1.3rem,4.5vw,1.9rem);font-weight:800;
+  margin-bottom:1.4em;text-align:center}
+.settings-group{width:min(90%,380px);margin-bottom:.9em;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:1em 1.3em}
+.setting-row{display:flex;align-items:center;justify-content:space-between;
+  color:#d4b890;font-size:.95rem;margin-bottom:.6em}
+.setting-row:last-child{margin-bottom:0}
+input[type=range]{flex:1;margin-left:1em;accent-color:#f5c842}
+.toggle-btn{padding:.35em .9em;border-radius:8px;border:1.5px solid rgba(245,200,66,.4);
+  background:rgba(245,200,66,.1);color:#f5c842;font-size:.85rem;cursor:pointer;min-width:52px;text-align:center}
+.toggle-btn.on{background:rgba(245,200,66,.3)}
+
+/* ── ENDING ── */
+#endingScreen{background:radial-gradient(ellipse at 50% 40%,#2a0a40 0%,#0d0d1a 70%)}
+.ending-title{font-size:clamp(2rem,6vw,3.2rem);font-weight:900;
+  background:linear-gradient(135deg,#f5c842,#ff8c42);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.3em;text-align:center}
+.ending-sub{color:#c8a87a;font-size:clamp(.9rem,3vw,1.1rem);margin-bottom:1.4em;text-align:center}
+.stars{font-size:clamp(2rem,8vw,3.5rem);letter-spacing:.15em;margin-bottom:.8em;text-align:center}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6em;width:min(90%,340px);margin-bottom:1.8em}
+.stat-box{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;padding:.7em 1em;text-align:center}
+.stat-val{color:#f5c842;font-size:1.4rem;font-weight:800}
+.stat-label{color:#8a7060;font-size:.72rem;letter-spacing:.08em;margin-top:.15em}
+
+/* ── WISP ── */
+#wisp{position:fixed;width:28px;height:28px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(180,240,255,1) 0%,rgba(100,200,255,.5) 50%,transparent 100%);
+  box-shadow:0 0 18px 6px rgba(100,200,255,.6);z-index:25;transform:translate(-50%,-50%);
+  transition:opacity .5s;display:none}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(245,200,66,.3);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- FADE -->
+<div id="fade"></div>
+
+<!-- CANVAS (game world) -->
+<canvas id="canvas"></canvas>
+
+<!-- WISP -->
+<div id="wisp"></div>
+
+<!-- ══════════ MAIN MENU ══════════ -->
+<div id="menuScreen" class="screen">
+  <div class="lantern-deco">🏮</div>
+  <div class="menu-title">The Lantern Trail</div>
+  <div class="menu-sub">A WANDERER'S ADVENTURE</div>
+  <button class="btn btn-primary" onclick="startGame()">▶  Start Adventure</button>
+  <button id="pwaInstallBtn" class="btn btn-secondary" style="border-color:#f5c842" onclick="installPWA()">📱  Install Android App</button>
+  <button class="btn btn-secondary" onclick="showScreen('settingsScreen')">⚙  Settings</button>
+  <button class="btn btn-danger" onclick="quitGame()">✕  Exit</button>
+</div>
+
+<!-- ══════════ HUD ══════════ -->
+<div id="hud" class="hidden">
+  <div id="hudTop">
+    <div id="objectiveBox">
+      <div id="objText">Find the lanterns</div>
+      <div id="progressText">0 / 3</div>
+    </div>
+    <button id="pauseBtn" onclick="togglePause()">⏸</button>
+  </div>
+  <div id="locationBadge">VILLAGE PATHS</div>
+
+  <!-- Touch controls -->
+  <div id="controls">
+    <div id="joystickZone">
+      <div id="joystickBase">
+        <div id="joystickKnob"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;pointer-events:none">
+      <button id="hintBtn" onclick="triggerHint()">💡 Hint</button>
+      <button id="interactBtn" onclick="handleInteract()">
+        <span id="interactIcon">✋</span>
+        <span id="interactLabel">Interact</span>
+      </button>
+    </div>
+  <div id="desktopHelp">Move: <kbd>WASD</kbd> / <kbd>Arrows</kbd> / Click & Drag &bull; Interact: <kbd>E</kbd> / <kbd>Space</kbd> &bull; Hint: <kbd>H</kbd></div>
+</div>
+
+<!-- ══════════ PAUSE MENU ══════════ -->
+<div id="pauseScreen" class="screen hidden">
+  <div class="pause-title">⏸ Paused</div>
+  <button class="btn btn-primary" onclick="togglePause()">▶  Resume</button>
+  <button class="btn btn-secondary" onclick="openJournal()">📖  Journal</button>
+  <button class="btn btn-secondary" onclick="restartLocation()">↺  Restart Location</button>
+  <button class="btn btn-danger" onclick="goToMenu()">⌂  Main Menu</button>
+</div>
+
+<!-- ══════════ NOTE PANEL ══════════ -->
+<div id="notePanel" class="hidden">
+  <div class="note-card">
+    <h2 id="noteTitle"></h2>
+    <p id="noteBody"></p>
+    <button class="btn btn-primary note-close" onclick="closeNote()">✓  Got it</button>
+  </div>
+</div>
+
+<!-- ══════════ JOURNAL ══════════ -->
+<div id="journalScreen" class="screen hidden">
+  <div class="journal-title">📖 Journal</div>
+  <div id="journalList"></div>
+  <button class="btn btn-secondary" style="width:min(90%,300px)" onclick="closeJournal()">← Back</button>
+</div>
+
+<!-- ══════════ SETTINGS ══════════ -->
+<div id="settingsScreen" class="screen hidden">
+  <div class="settings-title">⚙ Settings</div>
+  <div class="settings-group">
+    <div class="setting-row">
+      <span>🎵 Music</span>
+      <input type="range" id="musicVol" min="0" max="1" step="0.05" value="0.6" oninput="applySettings()">
+    </div>
+    <div class="setting-row">
+      <span>🔊 SFX</span>
+      <input type="range" id="sfxVol" min="0" max="1" step="0.05" value="0.8" oninput="applySettings()">
+    </div>
+  </div>
+  <div class="settings-group">
+    <div class="setting-row">
+      <span>📳 Vibration</span>
+      <button class="toggle-btn on" id="vibToggle" onclick="toggleVib()">ON</button>
+    </div>
+    <div class="setting-row">
+      <span>🖐 Left Hand</span>
+      <button class="toggle-btn" id="handToggle" onclick="toggleHand()">OFF</button>
+    </div>
+  </div>
+  <button class="btn btn-primary" style="width:min(90%,280px);margin-top:.8em" onclick="saveSettings();showScreen('menuScreen')">✓  Save</button>
+</div>
+
+<!-- ══════════ ENDING ══════════ -->
+<div id="endingScreen" class="screen hidden">
+  <div style="font-size:3rem;margin-bottom:.4em">🏠</div>
+  <div class="ending-title">Beacon Lit!</div>
+  <div class="ending-sub">The Lighthouse shines once more</div>
+  <div class="stars" id="starDisplay">⭐⭐⭐</div>
+  <div class="stats-grid">
+    <div class="stat-box"><div class="stat-val" id="statLanterns">0</div><div class="stat-label">LANTERNS</div></div>
+    <div class="stat-box"><div class="stat-val" id="statGolden">0</div><div class="stat-label">GOLDEN</div></div>
+    <div class="stat-box"><div class="stat-val" id="statNotes">0</div><div class="stat-label">NOTES READ</div></div>
+    <div class="stat-box"><div class="stat-val" id="statTime">0:00</div><div class="stat-label">TIME</div></div>
+  </div>
+  <button class="btn btn-primary" onclick="startGame()">↺  Play Again</button>
+  <button class="btn btn-secondary" onclick="goToMenu()">⌂  Main Menu</button>
+</div>
+
+<script>
+"use strict";
+// ═══════════════════════════════════════════════════════════
+//  THE LANTERN TRAIL  –  Complete Game Engine
+// ═══════════════════════════════════════════════════════════
+
+// ── Canvas setup ──────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+function resizeCanvas(){
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ── State ─────────────────────────────────────────────────
+const GS = {
+  running:       false,
+  paused:        false,
+  location:      0,          // 1=village, 2=river, 3=lighthouse
+  lanterns:      0,
+  golden:        0,
+  notes:         0,
+  collected:     new Set(),
+  journal:       [],
+  startTime:     0,
+  lastHintTime:  0,
+  objectiveDone: false,
+  plateOrder:    [],
+  platesHit:     0,
+  notesRead:     0,
+};
+
+// Settings (persisted in localStorage)
+const SET = {
+  music:    0.6,
+  sfx:      0.8,
+  vibration:true,
+  leftHand: false,
+};
+loadSettings();
+
+// ── Screen management ─────────────────────────────────────
+let currentScreen = 'menuScreen';
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
+  const el = document.getElementById(id);
+  if(el){ el.classList.remove('hidden'); currentScreen = id; }
+}
+function showHUD(){ document.getElementById('hud').classList.remove('hidden'); }
+function hideHUD(){ document.getElementById('hud').classList.add('hidden'); }
+
+// ── Fade ──────────────────────────────────────────────────
+function fadeIn(cb){ 
+  const f=document.getElementById('fade');
+  f.style.opacity='1'; f.style.transition='none';
+  setTimeout(()=>{ f.style.transition='opacity .5s'; f.style.opacity='0'; if(cb)setTimeout(cb,500); },50);
+}
+function fadeOut(cb){ 
+  const f=document.getElementById('fade');
+  f.style.transition='opacity .5s'; f.style.opacity='1';
+  if(cb) setTimeout(cb,520);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  WORLD DEFINITIONS
+// ═══════════════════════════════════════════════════════════
+const WORLDS = [null, buildWorld1, buildWorld2, buildWorld3];
+
+// Each world returns: { entities[], player{x,y}, bgColors, fogColor, title, objective }
+function buildWorld1(){
+  const W=canvas.width, H=canvas.height;
+  const cx=W/2, cy=H/2;
+  return {
+    title:'VILLAGE PATHS',
+    objective:'Collect 3 Lanterns',
+    bgTop:'#3d6e2a', bgBottom:'#8db85a',
+    fogColor: null,
+    ambientLight:'#7dd44422',
+    entities:[
+      // Ground decorations (trees, hut, pond, big tree)
+      {type:'tree',x:cx-180,y:cy-120,r:32,col:'#2d5c1a',trunk:'#5c3a1a'},
+      {type:'tree',x:cx+200,y:cy-100,r:28,col:'#2d5c1a',trunk:'#5c3a1a'},
+      {type:'tree',x:cx-220,y:cy+60,r:36,col:'#3a7020',trunk:'#5c3a1a'},
+      {type:'bigtree',x:cx+80,y:cy-160,r:55,col:'#1e4d12',trunk:'#4a2e10'},
+      {type:'hut',x:cx-80,y:cy-80,w:80,h:60,col:'#c4965a',roof:'#8b4513'},
+      {type:'pond',x:cx+140,y:cy+100,rx:55,ry:35,col:'#3a8fbf'},
+      {type:'signpost',x:cx+20,y:cy,text:'→ Exit'},
+      // Paths
+      {type:'path',points:[{x:cx-250,y:cy+200},{x:cx,y:cy+80},{x:cx+250,y:cy-50}],col:'#c4a86a',w:28},
+      {type:'path',points:[{x:cx-50,y:cy-200},{x:cx-50,y:cy+200}],col:'#c4a86a',w:22},
+      // Lanterns (collectibles)
+      {type:'lantern',id:'l1_1',x:cx-120,y:cy+60,col:'#f5c842',collected:false},
+      {type:'lantern',id:'l1_2',x:cx+30,y:cy-100,col:'#f5c842',collected:false},
+      {type:'lantern',id:'l1_3',x:cx+160,y:cy+30,col:'#f5c842',collected:false},
+      // Golden lantern (hidden off main path)
+      {type:'lantern',id:'l1_gold',x:cx-200,y:cy-150,col:'#ffe047',golden:true,collected:false},
+      // Signs
+      {type:'sign',id:'sign1_1',x:cx-40,y:cy-170,
+       title:'The Wanderer\'s Path',
+       body:'I left this lantern here so others might find their way. The light in the darkness is never wasted — it guides every soul that follows.'},
+      {type:'sign',id:'sign1_2',x:cx+100,y:cy+130,
+       title:'Village Elder\'s Note',
+       body:'Three lanterns guard the gate to the river crossing. Collect them all and the ancient gate shall open. Courage, traveller.'},
+      // Gate
+      {type:'gate',x:cx+220,y:cy-30,w:24,h:70,locked:true},
+      // Walls / boundaries
+      {type:'wall',x:0,y:0,w:W,h:18},
+      {type:'wall',x:0,y:H-18,w:W,h:18},
+      {type:'wall',x:0,y:0,w:18,h:H},
+      {type:'wall',x:W-18,y:0,w:18,h:H},
+    ],
+    player:{x:cx-50,y:cy+100},
+  };
+}
+
+function buildWorld2(){
+  const W=canvas.width, H=canvas.height;
+  const cx=W/2, cy=H/2;
+  return {
+    title:'MISTY RIVER',
+    objective:'Step on 3 plates in order',
+    bgTop:'#1a3a5c', bgBottom:'#4a7090',
+    fogColor:'rgba(180,210,230,0.18)',
+    ambientLight:'#5599cc22',
+    entities:[
+      // River
+      {type:'river',x:cx-320,y:cy-50,w:640,h:120,col:'#2a5a7a'},
+      // Boat
+      {type:'boat',x:cx-60,y:cy-20,w:90,h:36,col:'#8b5c2a'},
+      // Broken bridge
+      {type:'bridge',x:cx,y:cy-50,w:80,h:120,col:'#7a6040',broken:true,fixed:false},
+      // Lantern poles
+      {type:'pole',x:cx-180,y:cy-30,h:70,col:'#4a3a2a'},
+      {type:'pole',x:cx+180,y:cy-30,h:70,col:'#4a3a2a'},
+      // Trees (misty)
+      {type:'tree',x:cx-260,y:cy-130,r:30,col:'#2a4a30',trunk:'#3a2a1a'},
+      {type:'tree',x:cx+220,y:cy-120,r:28,col:'#2a4a30',trunk:'#3a2a1a'},
+      {type:'tree',x:cx-200,y:cy+140,r:32,col:'#2a4a30',trunk:'#3a2a1a'},
+      // Paths
+      {type:'path',points:[{x:cx-300,y:cy+180},{x:cx-60,y:cy+80},{x:cx+60,y:cy+80},{x:cx+300,y:cy-150}],col:'#8aaa8a',w:24},
+      // Signs with plate order
+      {type:'sign',id:'sign2_1',x:cx-240,y:cy+100,
+       title:'Stone Tablet — Order',
+       body:'The ancient bridge responds to the three pressure plates. Step in this order: NORTH plate, then EAST plate, then WEST plate. Step wrongly and begin again.'},
+      {type:'sign',id:'sign2_2',x:cx+180,y:cy+110,
+       title:'River Keeper\'s Warning',
+       body:'The fog here has grown thick. I lit lantern poles to guide the way. The plates remember — they always remember the order.'},
+      // Pressure plates (ordered: plate_N, plate_E, plate_W)
+      {type:'plate',id:'plate_N',x:cx,y:cy-110,label:'N',col:'#aaddff',activated:false,order:0},
+      {type:'plate',id:'plate_E',x:cx+180,y:cy+60,label:'E',col:'#aaddff',activated:false,order:1},
+      {type:'plate',id:'plate_W',x:cx-180,y:cy+60,label:'W',col:'#aaddff',activated:false,order:2},
+      // Golden lantern (hidden near boat)
+      {type:'lantern',id:'l2_gold',x:cx-80,y:cy-5,col:'#ffe047',golden:true,collected:false},
+      // More notes
+      {type:'sign',id:'sign2_3',x:cx-20,y:cy+160,
+       title:'A Fisherman\'s Song',
+       body:'Row, row toward the light... the lanterns never go dark if someone carries the flame forward.'},
+      // Gate (bridge unlocks)
+      {type:'gate',x:cx,y:cy-50,w:80,h:12,locked:true,isBridge:true},
+      // Walls
+      {type:'wall',x:0,y:0,w:W,h:18},
+      {type:'wall',x:0,y:H-18,w:W,h:18},
+      {type:'wall',x:0,y:0,w:18,h:H},
+      {type:'wall',x:W-18,y:0,w:18,h:H},
+    ],
+    player:{x:cx-50,y:cy+160},
+    plateSequence:['plate_N','plate_E','plate_W'],
+  };
+}
+
+function buildWorld3(){
+  const W=canvas.width, H=canvas.height;
+  const cx=W/2, cy=H/2;
+  return {
+    title:'LIGHTHOUSE HILL',
+    objective:'Reach the Beacon',
+    bgTop:'#0d0028', bgBottom:'#2a1050',
+    fogColor:'rgba(80,40,120,0.12)',
+    ambientLight:'#ff880022',
+    entities:[
+      // Lighthouse
+      {type:'lighthouse',x:cx,y:cy-130,w:60,h:160,col:'#d4c4a0',light:'#f5c842'},
+      // Stone steps
+      {type:'steps',x:cx-30,y:cy-80,n:6,col:'#9a9080'},
+      // Ruins
+      {type:'ruin',x:cx-200,y:cy-60,w:80,h:50,col:'#7a7060'},
+      {type:'ruin',x:cx+160,y:cy+30,w:60,h:40,col:'#7a7060'},
+      // Firefly particles (handled in draw)
+      {type:'fireflies',x:cx,y:cy,count:18},
+      // Glowing lantern lights
+      {type:'glowLantern',x:cx-80,y:cy+20,col:'#ff8c42'},
+      {type:'glowLantern',x:cx+80,y:cy+20,col:'#f5c842'},
+      {type:'glowLantern',x:cx,y:cy-60,col:'#ff6622'},
+      // Path of glowing stones
+      {type:'path',points:[{x:cx-300,y:cy+200},{x:cx-80,y:cy+60},{x:cx,y:cy-40}],col:'#6a5a40',w:26},
+      // Signs
+      {type:'sign',id:'sign3_1',x:cx-160,y:cy+80,
+       title:'The Lighthouse Keeper\'s Last Note',
+       body:'I have kept this light burning for forty years. If you have carried the lanterns this far, you carry the spirit of every traveller who came before you. Light the beacon.'},
+      {type:'sign',id:'sign3_2',x:cx+120,y:cy+50,
+       title:'Ancient Inscription',
+       body:'Three lanterns united summon the fourth — the great beacon that no storm can extinguish. The trail ends where the light begins.'},
+      // Golden lantern (hardest to find — behind ruins)
+      {type:'lantern',id:'l3_gold',x:cx-230,y:cy-40,col:'#ffe047',golden:true,collected:false},
+      // Beacon (the final interactive object)
+      {type:'beacon',id:'beacon',x:cx,y:cy-170,lit:false},
+      // Walls
+      {type:'wall',x:0,y:0,w:W,h:18},
+      {type:'wall',x:0,y:H-18,w:W,h:18},
+      {type:'wall',x:0,y:0,w:18,h:H},
+      {type:'wall',x:W-18,y:0,w:18,h:H},
+    ],
+    player:{x:cx-50,y:cy+160},
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GAME WORLD STATE
+// ═══════════════════════════════════════════════════════════
+let world         = null;
+let player        = {x:300,y:300,vx:0,vy:0,speed:180,radius:14,facing:0};
+let wispPos       = {x:0,y:0};
+let wispTarget    = null;
+let wispFollowing = false;
+let fireflies     = [];
+let gateOpen      = false;
+let beaconLit     = false;
+let rainParticles = [];
+let leafParticles = [];
+let plateNextIdx  = 0;
+
+// ── Input ─────────────────────────────────────────────────
+const keys = {};
+const joystick = {active:false,startX:0,startY:0,dx:0,dy:0,id:-1};
+const pointer = {active:false,x:0,y:0,targetX:null,targetY:null};
+let   lastTime = 0;
+
+// ─── Keyboard ─────────────────────────────────────────────
+window.addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.key) keys[e.key.toLowerCase()]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code) && GS.running){
+    e.preventDefault();
+  }
+  if((e.code==='Escape' || e.key==='Escape') && GS.running && currentScreen!=='journalScreen' && currentScreen!=='settingsScreen') togglePause();
+  if((e.code==='KeyE' || e.key==='e' || e.key==='E' || e.code==='Space' || e.code==='Enter') && GS.running && !GS.paused) handleInteract();
+  if((e.code==='KeyH' || e.key==='h' || e.key==='H') && GS.running && !GS.paused) triggerHint();
+});
+window.addEventListener('keyup', e=>{
+  keys[e.code]=false;
+  if(e.key) keys[e.key.toLowerCase()]=false;
+});
+
+// ─── Mouse / Pointer (Click & Drag to move + Direct click) ─
+canvas.addEventListener('pointerdown', e=>{
+  if(!GS.running || GS.paused) return;
+  pointer.active = true;
+  pointer.x = e.clientX;
+  pointer.y = e.clientY;
+  pointer.targetX = e.clientX;
+  pointer.targetY = e.clientY;
+  checkDirectClick(e.clientX, e.clientY);
+});
+
+window.addEventListener('pointermove', e=>{
+  if(!pointer.active) return;
+  pointer.x = e.clientX;
+  pointer.y = e.clientY;
+  pointer.targetX = e.clientX;
+  pointer.targetY = e.clientY;
+});
+
+window.addEventListener('pointerup', ()=>{
+  pointer.active = false;
+});
+window.addEventListener('pointercancel', ()=>{
+  pointer.active = false;
+});
+
+function checkDirectClick(cx, cy){
+  if(!world) return;
+  for(const e of world.entities){
+    if(!isInteractable(e)) continue;
+    const ex = e.x ?? 0, ey = e.y ?? 0;
+    if(Math.hypot(cx - ex, cy - ey) < 45){
+      if(Math.hypot(player.x - ex, player.y - ey) < 65){
+        window._nearestInteractable = e;
+        handleInteract();
+      } else {
+        pointer.targetX = ex;
+        pointer.targetY = ey;
+      }
+      break;
+    }
+  }
+}
+
+// ─── Joystick touch ───────────────────────────────────────
+const jZone = document.getElementById('joystickZone');
+const jBase = document.getElementById('joystickBase');
+const jKnob = document.getElementById('joystickKnob');
+const JR = 50; // max knob offset
+
+jZone.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  const r=jBase.getBoundingClientRect();
+  joystick.active=true; joystick.id=t.identifier;
+  joystick.startX=r.left+r.width/2; joystick.startY=r.top+r.height/2;
+  updateJoystick(t.clientX,t.clientY);
+},{passive:false});
+
+window.addEventListener('touchmove',e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===joystick.id){ updateJoystick(t.clientX,t.clientY); }
+  }
+},{passive:false});
+
+window.addEventListener('touchend',e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===joystick.id){
+      joystick.active=false; joystick.dx=0; joystick.dy=0;
+      jKnob.style.transform='translate(-50%,-50%)';
+    }
+  }
+},{passive:false});
+
+function updateJoystick(cx,cy){
+  let dx=cx-joystick.startX, dy=cy-joystick.startY;
+  const d=Math.sqrt(dx*dx+dy*dy);
+  if(d>JR){ dx=dx/d*JR; dy=dy/d*JR; }
+  joystick.dx=dx/JR; joystick.dy=dy/JR;
+  jKnob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GAME LOOP
+// ═══════════════════════════════════════════════════════════
+function gameLoop(ts){
+  if(!GS.running){ requestAnimationFrame(gameLoop); return; }
+  const dt=Math.min((ts-lastTime)/1000, 0.05);
+  lastTime=ts;
+  if(!GS.paused){
+    update(dt);
+  }
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function update(dt){
+  if(!world) return;
+
+  // ── Input ────────────────────────────────────────────────
+  let ix=0,iy=0;
+  if(joystick.active){ ix=joystick.dx; iy=joystick.dy; }
+  if(keys['ArrowLeft']||keys['KeyA']||keys['a']) ix=-1;
+  if(keys['ArrowRight']||keys['KeyD']||keys['d']) ix=1;
+  if(keys['ArrowUp']||keys['KeyW']||keys['w'])   iy=-1;
+  if(keys['ArrowDown']||keys['KeyS']||keys['s']) iy=1;
+
+  if(ix === 0 && iy === 0){
+    if(pointer.active){
+      const pdx = pointer.x - player.x;
+      const pdy = pointer.y - player.y;
+      const dist = Math.hypot(pdx, pdy);
+      if(dist > 15){ ix = pdx / dist; iy = pdy / dist; }
+    } else if(pointer.targetX !== null && pointer.targetY !== null){
+      const pdx = pointer.targetX - player.x;
+      const pdy = pointer.targetY - player.y;
+      const dist = Math.hypot(pdx, pdy);
+      if(dist > 12){ ix = pdx / dist; iy = pdy / dist; }
+      else { pointer.targetX = null; pointer.targetY = null; }
+    }
+  } else {
+    pointer.targetX = null;
+    pointer.targetY = null;
+  }
+
+  const mag=Math.sqrt(ix*ix+iy*iy);
+  if(mag>0){ ix/=mag; iy/=mag; }
+
+  let nx=player.x+ix*player.speed*dt;
+  let ny=player.y+iy*player.speed*dt;
+
+  // Collision with walls and solid objects
+  for(const e of world.entities){
+    if(e.type==='wall'||e.type==='ruin'){
+      const ex=e.x,ey=e.y,ew=e.w,eh=e.h,pr=player.radius;
+      if(nx+pr>ex&&nx-pr<ex+ew&&ny+pr>ey&&ny-pr<ey+eh){
+        // Resolve collision axis by axis
+        if(player.x+pr<=ex||player.x-pr>=ex+ew) nx=player.x; else ny=player.y;
+      }
+    }
+    if(e.type==='gate'&&e.locked){
+      // Treat locked gate as wall
+      let gx=e.x-e.w/2,gy=e.y-e.h/2,gw=e.w,gh=e.h;
+      if(e.isBridge){ gx=e.x-e.w/2; gy=e.y-6; gw=e.w; gh=12; }
+      const pr=player.radius;
+      if(nx+pr>gx&&nx-pr<gx+gw&&ny+pr>gy&&ny-pr<gy+gh){
+        if(player.x+pr<=gx||player.x-pr>=gx+gw) nx=player.x; else ny=player.y;
+      }
+    }
+    // River blocks unless on bridge
+    if(e.type==='river'){
+      const bridge = world.entities.find(b=>b.type==='gate'&&b.isBridge);
+      if(bridge && bridge.locked){
+        const pr=player.radius;
+        if(nx+pr>e.x&&nx-pr<e.x+e.w&&ny+pr>e.y&&ny-pr<e.y+e.h){
+          // Check if on bridge path
+          const onBridge=(nx>bridge.x-bridge.w/2-10&&nx<bridge.x+bridge.w/2+10);
+          if(!onBridge){
+            if(player.x+pr<=e.x||player.x-pr>=e.x+e.w) nx=player.x; else ny=player.y;
+          }
+        }
+      }
+    }
+  }
+
+  // Clamp to canvas
+  player.x = Math.max(player.radius+20,Math.min(canvas.width-player.radius-20,nx));
+  player.y = Math.max(player.radius+20,Math.min(canvas.height-player.radius-20,ny));
+
+  // Face direction
+  if(mag>0.1) player.facing=Math.atan2(iy,ix);
+
+  // ── Interact detection ───────────────────────────────────
+  let nearest=null, nearestDist=999;
+  const REACH=55;
+  for(const e of world.entities){
+    if(!isInteractable(e)) continue;
+    const ex=e.x??0, ey=e.y??0;
+    const d=Math.hypot(player.x-ex,player.y-ey);
+    if(d<REACH && d<nearestDist){ nearestDist=d; nearest=e; }
+  }
+  window._nearestInteractable = nearest;
+  const iBtn=document.getElementById('interactBtn');
+  const iLbl=document.getElementById('interactLabel');
+  const iIco=document.getElementById('interactIcon');
+  if(nearest){
+    iBtn.classList.add('visible');
+    if(nearest.type==='lantern'){ iIco.textContent='🏮'; iLbl.textContent='Collect'; }
+    else if(nearest.type==='sign'){ iIco.textContent='📜'; iLbl.textContent='Read'; }
+    else if(nearest.type==='gate'){ iIco.textContent='🚪'; iLbl.textContent='Open'; }
+    else if(nearest.type==='plate'){ iIco.textContent='🔵'; iLbl.textContent='Step'; }
+    else if(nearest.type==='beacon'){ iIco.textContent='🔥'; iLbl.textContent='Light!'; }
+  } else {
+    iBtn.classList.remove('visible');
+  }
+
+  // ── Wisp follow ──────────────────────────────────────────
+  const wispEl=document.getElementById('wisp');
+  let wispDestX=player.x+Math.sin(Date.now()/1200)*30+30;
+  let wispDestY=player.y+Math.cos(Date.now()/900)*20-30;
+  if(wispTarget && wispFollowing){
+    wispDestX=wispTarget.x;
+    wispDestY=wispTarget.y;
+  }
+  wispPos.x+=(wispDestX-wispPos.x)*dt*3;
+  wispPos.y+=(wispDestY-wispPos.y)*dt*3;
+  // Convert world pos to screen (since we draw world at screen coords directly)
+  wispEl.style.left=wispPos.x+'px';
+  wispEl.style.top =wispPos.y+'px';
+
+  // Auto-hint if 45 seconds without progress
+  if(!GS.objectiveDone && Date.now()-GS.lastHintTime > 45000){
+    triggerHint(); GS.lastHintTime=Date.now();
+  }
+
+  // ── Particles ────────────────────────────────────────────
+  updateParticles(dt);
+}
+
+function isInteractable(e){
+  if(e.type==='lantern' && !e.collected) return true;
+  if(e.type==='sign') return true;
+  if(e.type==='gate' && !e.locked) return true;
+  if(e.type==='plate' && !e.activated && !GS.objectiveDone) return true;
+  if(e.type==='beacon' && !e.lit && GS.location===3) return true;
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INTERACT
+// ═══════════════════════════════════════════════════════════
+function handleInteract(){
+  const e = window._nearestInteractable;
+  if(!e || GS.paused) return;
+
+  if(e.type==='lantern' && !e.collected){
+    e.collected=true;
+    if(GS.collected.has(e.id)) return;
+    GS.collected.add(e.id);
+    if(e.golden){ GS.golden++; }
+    else { GS.lanterns++; }
+    vibrate();
+    playCollectSound();
+    spawnSparkles(e.x,e.y,'#f5c842');
+    checkObjective();
+    updateHUD();
+  }
+  else if(e.type==='sign'){
+    if(!GS.collected.has(e.id)){
+      GS.collected.add(e.id);
+      GS.notes++;
+      GS.journal.push({title:e.title,body:e.body,id:e.id});
+      if(GS.location===2) checkObjective(); // notes advance loc2 objective
+    }
+    showNote(e.title,e.body);
+  }
+  else if(e.type==='gate' && !e.locked){
+    openGate(e);
+  }
+  else if(e.type==='plate' && !e.activated){
+    tryActivatePlate(e);
+  }
+  else if(e.type==='beacon' && !e.lit){
+    lightBeacon(e);
+  }
+}
+
+function checkObjective(){
+  if(GS.objectiveDone) return;
+
+  if(GS.location===1){
+    // Need 3 lanterns
+    const count=[...GS.collected].filter(id=>id.startsWith('l1_')&&!id.includes('gold')).length;
+    updateProgress(count,3);
+    if(count>=3){ completeObjective(); }
+  }
+  else if(GS.location===2){
+    // Plates handled separately
+  }
+  else if(GS.location===3){
+    // Beacon lights it
+  }
+}
+
+function updateProgress(cur,total){
+  document.getElementById('progressText').textContent=`${cur} / ${total}`;
+}
+
+function completeObjective(){
+  if(GS.objectiveDone) return;
+  GS.objectiveDone=true;
+  // Unlock gate
+  const gate=world.entities.find(e=>e.type==='gate');
+  if(gate){ gate.locked=false; }
+  document.getElementById('objText').textContent='✔ Objective done! Find the exit →';
+  playUnlockSound();
+  vibrate(200);
+}
+
+function tryActivatePlate(plate){
+  if(!world.plateSequence) return;
+  const expected=world.plateSequence[plateNextIdx];
+  if(plate.id===expected){
+    plate.activated=true;
+    plateNextIdx++;
+    spawnSparkles(plate.x,plate.y,'#aaddff');
+    playCollectSound();
+    updateProgress(plateNextIdx,3);
+    if(plateNextIdx>=3) completeObjective();
+    else {
+      const next=world.entities.find(e=>e.id===world.plateSequence[plateNextIdx]);
+      if(next) setWispTarget(next);
+    }
+  } else {
+    // Wrong order – flash red, reset
+    plateNextIdx=0;
+    world.entities.filter(e=>e.type==='plate').forEach(p=>p.activated=false);
+    spawnSparkles(plate.x,plate.y,'#ff4444');
+    document.getElementById('objText').textContent='Wrong order! Try again: N → E → W';
+    setTimeout(()=>document.getElementById('objText').textContent='Step on plates: N → E → W',2000);
+  }
+}
+
+function openGate(gate){
+  if(!gate || gate.locked) return;
+  gate.opening=true;
+  setTimeout(()=>{ gate.gone=true; }, 800);
+  // If Location 3, this is the exit zone
+  setTimeout(()=>{ loadNextLocation(); }, 1200);
+}
+
+function lightBeacon(beacon){
+  beacon.lit=true;
+  beaconLit=true;
+  GS.objectiveDone=true;
+  spawnSparkles(beacon.x,beacon.y,'#ff8c42');
+  spawnSparkles(beacon.x,beacon.y,'#f5c842');
+  vibrate(400);
+  playUnlockSound();
+  setTimeout(()=>showEnding(), 2200);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOCATION LOADING
+// ═══════════════════════════════════════════════════════════
+function loadLocation(n){
+  GS.location=n;
+  GS.objectiveDone=false;
+  gateOpen=false;
+  beaconLit=false;
+  plateNextIdx=0;
+  fireflies=[];
+  rainParticles=[];
+  leafParticles=[];
+  _sparkles=[];
+  wispFollowing=false;
+  wispTarget=null;
+  GS.lastHintTime=Date.now();
+
+  const buildFn=WORLDS[n];
+  if(!buildFn) return;
+  world=buildFn();
+
+  // Restore already-collected IDs
+  world.entities.forEach(e=>{
+    if(e.id && GS.collected.has(e.id)){
+      if(e.type==='lantern') e.collected=true;
+      if(e.type==='plate') e.activated=true;
+    }
+  });
+
+  // Place player
+  player.x=world.player.x;
+  player.y=world.player.y;
+  wispPos.x=player.x+30;
+  wispPos.y=player.y-30;
+
+  // Init particles
+  if(n===3) for(let i=0;i<20;i++) fireflies.push(makeFirefly());
+  if(n===2) for(let i=0;i<40;i++) rainParticles.push(makeRain());
+  if(n===1) for(let i=0;i<25;i++) leafParticles.push(makeLeaf());
+
+  // Update HUD
+  document.getElementById('locationBadge').textContent=world.title;
+  document.getElementById('objText').textContent=world.objective;
+
+  if(n===1) updateProgress([...GS.collected].filter(id=>id.startsWith('l1_')&&!id.includes('gold')).length,3);
+  else if(n===2) updateProgress(0,3);
+  else if(n===3) document.getElementById('progressText').textContent='';
+
+  // Set hint target to first uncollected lantern
+  const firstTarget=world.entities.find(e=>e.type==='lantern'&&!e.collected);
+  if(firstTarget) setWispTarget(firstTarget);
+}
+
+function loadNextLocation(){
+  const next=GS.location+1;
+  fadeOut(()=>{
+    if(next<=3){ loadLocation(next); fadeIn(); }
+    else showEnding();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PARTICLES
+// ═══════════════════════════════════════════════════════════
+let _sparkles=[];
+
+function spawnSparkles(x,y,col){
+  for(let i=0;i<14;i++){
+    const a=Math.random()*Math.PI*2, s=40+Math.random()*80;
+    _sparkles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,col});
+  }
+}
+
+function makeFirefly(){ return {
+  x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+  vx:(Math.random()-.5)*20, vy:(Math.random()-.5)*15,
+  life:Math.random(), col:'#ccff88', r:2.5+Math.random()*2 }; }
+
+function makeRain(){ return {
+  x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+  vy:220+Math.random()*120, vx:-15, life:1 }; }
+
+function makeLeaf(){ return {
+  x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+  vx:-10+Math.random()*20, vy:15+Math.random()*25,
+  rot:Math.random()*Math.PI*2, rotV:(Math.random()-.5)*3,
+  life:Math.random()*0.8+0.2 }; }
+
+function updateParticles(dt){
+  _sparkles=_sparkles.filter(p=>p.life>0);
+  _sparkles.forEach(p=>{
+    p.x+=p.vx*dt; p.y+=p.vy*dt;
+    p.vx*=0.92; p.vy*=0.92; p.life-=dt*1.5;
+  });
+  fireflies.forEach(f=>{
+    f.x+=f.vx*dt; f.y+=f.vy*dt; f.life+=dt*0.8;
+    if(f.x<0||f.x>canvas.width||f.y<0||f.y>canvas.height||f.life>1) Object.assign(f,makeFirefly());
+  });
+  rainParticles.forEach(r=>{
+    r.x+=r.vx*dt; r.y+=r.vy*dt;
+    if(r.y>canvas.height) Object.assign(r,makeRain(),{y:0});
+  });
+  leafParticles.forEach(l=>{
+    l.x+=l.vx*dt; l.y+=l.vy*dt; l.rot+=l.rotV*dt;
+    if(l.y>canvas.height) Object.assign(l,makeLeaf(),{y:0,x:Math.random()*canvas.width});
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRAW
+// ═══════════════════════════════════════════════════════════
+function draw(){
+  if(!world){ ctx.clearRect(0,0,canvas.width,canvas.height); return; }
+  const W=canvas.width,H=canvas.height;
+
+  // Background gradient
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,world.bgTop);
+  bg.addColorStop(1,world.bgBottom);
+  ctx.fillStyle=bg;
+  ctx.fillRect(0,0,W,H);
+
+  // Draw entities (back to front)
+  const drawOrder=['river','path','wall','ruin','steps','bridge','pole','hut','pond','tree','bigtree','boat',
+                   'lighthouse','gate','plate','glowLantern','fireflies','lantern','beacon','sign','signpost'];
+  drawOrder.forEach(t=> world.entities.filter(e=>e.type===t).forEach(e=>drawEntity(e)));
+
+  // Player
+  drawPlayer();
+
+  // Sparkles
+  _sparkles.forEach(p=>{
+    ctx.save();
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.col;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,3.5*(0.5+p.life*.5),0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // Fireflies overlay
+  if(GS.location===3){
+    fireflies.forEach(f=>{
+      const pulse=0.4+0.6*Math.sin(f.life*Math.PI*2);
+      ctx.save();
+      ctx.globalAlpha=pulse*0.8;
+      const g=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,f.r*3);
+      g.addColorStop(0,'rgba(180,255,100,1)');
+      g.addColorStop(1,'rgba(180,255,100,0)');
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(f.x,f.y,f.r*3,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  // Rain
+  if(GS.location===2){
+    ctx.save(); ctx.strokeStyle='rgba(180,220,255,0.35)'; ctx.lineWidth=1.2;
+    rainParticles.forEach(r=>{
+      ctx.beginPath(); ctx.moveTo(r.x,r.y); ctx.lineTo(r.x+r.vx*0.06,r.y+18); ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  // Leaves
+  if(GS.location===1){
+    ctx.save();
+    leafParticles.forEach(l=>{
+      ctx.save();
+      ctx.translate(l.x,l.y); ctx.rotate(l.rot);
+      ctx.fillStyle='rgba(90,160,40,'+l.life+')';
+      ctx.beginPath();
+      ctx.ellipse(0,0,5,3,0,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
+  // Fog overlay
+  if(world.fogColor){
+    ctx.fillStyle=world.fogColor;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // Ambient light
+  if(world.ambientLight){
+    ctx.fillStyle=world.ambientLight;
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+function drawEntity(e){
+  ctx.save();
+  switch(e.type){
+    case 'path': drawPath(e); break;
+    case 'tree': drawTree(e); break;
+    case 'bigtree': drawBigTree(e); break;
+    case 'hut':  drawHut(e); break;
+    case 'pond': drawPond(e); break;
+    case 'signpost': drawSignpost(e); break;
+    case 'river': drawRiver(e); break;
+    case 'boat':  drawBoat(e); break;
+    case 'bridge': drawBridgeObj(e); break;
+    case 'pole':  drawPole(e); break;
+    case 'gate':  drawGate(e); break;
+    case 'wall':  /* invisible */ break;
+    case 'ruin':  drawRuin(e); break;
+    case 'steps': drawSteps(e); break;
+    case 'lighthouse': drawLighthouse(e); break;
+    case 'plate': drawPlate(e); break;
+    case 'glowLantern': drawGlowLantern(e); break;
+    case 'lantern': drawLanternObj(e); break;
+    case 'beacon': drawBeacon(e); break;
+    case 'sign':  drawSignObj(e); break;
+    case 'fireflies': break; // drawn separately
+  }
+  ctx.restore();
+}
+
+function drawPath(e){
+  if(!e.points||e.points.length<2) return;
+  ctx.strokeStyle=e.col||'#c4a86a'; ctx.lineWidth=e.w||24;
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(e.points[0].x,e.points[0].y);
+  for(let i=1;i<e.points.length;i++) ctx.lineTo(e.points[i].x,e.points[i].y);
+  ctx.stroke();
+}
+
+function drawTree(e){
+  // Trunk
+  ctx.fillStyle=e.trunk||'#5c3a1a';
+  ctx.fillRect(e.x-5,e.y-e.r*.6,10,e.r*.8);
+  // Canopy
+  ctx.fillStyle=e.col||'#2d5c1a';
+  ctx.beginPath(); ctx.arc(e.x,e.y-e.r*.6,e.r,0,Math.PI*2); ctx.fill();
+  // Highlight
+  ctx.fillStyle='rgba(255,255,255,0.07)';
+  ctx.beginPath(); ctx.arc(e.x-e.r*.3,e.y-e.r*.9,e.r*.45,0,Math.PI*2); ctx.fill();
+}
+
+function drawBigTree(e){
+  ctx.fillStyle=e.trunk||'#4a2e10';
+  ctx.fillRect(e.x-8,e.y-e.r*.7,16,e.r);
+  ctx.fillStyle=e.col||'#1e4d12';
+  ctx.beginPath(); ctx.arc(e.x,e.y-e.r*.5,e.r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.06)';
+  ctx.beginPath(); ctx.arc(e.x-e.r*.35,e.y-e.r*.85,e.r*.5,0,Math.PI*2); ctx.fill();
+}
+
+function drawHut(e){
+  ctx.fillStyle=e.col||'#c4965a';
+  ctx.fillRect(e.x,e.y,e.w,e.h);
+  // Door
+  ctx.fillStyle='#3a1a00';
+  ctx.fillRect(e.x+e.w/2-10,e.y+e.h-25,20,25);
+  // Roof
+  ctx.fillStyle=e.roof||'#8b4513';
+  ctx.beginPath();
+  ctx.moveTo(e.x-10,e.y+4);
+  ctx.lineTo(e.x+e.w/2,e.y-e.h*.45);
+  ctx.lineTo(e.x+e.w+10,e.y+4);
+  ctx.closePath(); ctx.fill();
+  // Window
+  ctx.fillStyle='rgba(255,220,100,.5)';
+  ctx.fillRect(e.x+8,e.y+10,16,12);
+}
+
+function drawPond(e){
+  ctx.fillStyle=e.col||'#3a8fbf';
+  ctx.beginPath(); ctx.ellipse(e.x,e.y,e.rx,e.ry,0,0,Math.PI*2); ctx.fill();
+  // Shimmer
+  ctx.fillStyle='rgba(255,255,255,0.12)';
+  ctx.beginPath(); ctx.ellipse(e.x-e.rx*.2,e.y-e.ry*.2,e.rx*.4,e.ry*.25,-.3,0,Math.PI*2); ctx.fill();
+}
+
+function drawSignpost(e){
+  ctx.fillStyle='#6a4020'; ctx.fillRect(e.x-3,e.y-40,6,40);
+  ctx.fillStyle='#a06030'; ctx.fillRect(e.x-2,e.y-38,4,38);
+  ctx.fillStyle='#c08050'; ctx.fillRect(e.x,e.y-50,50,18); ctx.beginPath();
+  ctx.moveTo(e.x+50,e.y-41); ctx.lineTo(e.x+58,e.y-41);ctx.lineTo(e.x+50,e.y-35);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#2a1000'; ctx.font='bold 9px system-ui'; ctx.textBaseline='middle';
+  ctx.fillText(e.text||'→',e.x+6,e.y-41);
+}
+
+function drawRiver(e){
+  ctx.fillStyle=e.col||'#2a5a7a';
+  ctx.fillRect(e.x,e.y,e.w,e.h);
+  // Ripples
+  ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=2;
+  for(let i=0;i<4;i++){
+    ctx.beginPath();
+    ctx.moveTo(e.x+30+i*150,e.y+e.h/3);
+    ctx.bezierCurveTo(e.x+60+i*150,e.y+e.h/3-8,e.x+90+i*150,e.y+e.h/3+8,e.x+120+i*150,e.y+e.h/3);
+    ctx.stroke();
+  }
+}
+
+function drawBoat(e){
+  ctx.fillStyle=e.col||'#8b5c2a';
+  ctx.beginPath();
+  ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+e.w,e.y);
+  ctx.lineTo(e.x+e.w-10,e.y+e.h); ctx.lineTo(e.x+10,e.y+e.h); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#5c3010'; ctx.lineWidth=2; ctx.stroke();
+  // Mast
+  ctx.strokeStyle='#5c3010'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(e.x+e.w/2,e.y-50); ctx.lineTo(e.x+e.w/2,e.y); ctx.stroke();
+}
+
+function drawBridgeObj(e){
+  ctx.fillStyle='rgba(80,60,30,0.6)';
+  ctx.fillRect(e.x-e.w/2,e.y-20,e.w,e.h);
+  // Planks
+  ctx.strokeStyle='#5a4020'; ctx.lineWidth=3;
+  for(let i=0;i<5;i++){
+    ctx.beginPath();
+    ctx.moveTo(e.x-e.w/2,e.y-20+i*(e.h/5));
+    ctx.lineTo(e.x+e.w/2,e.y-20+i*(e.h/5));
+    ctx.stroke();
+  }
+  if(e.broken){
+    // Broken gap
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(e.x-8,e.y+10,16,30);
+  }
+}
+
+function drawPole(e){
+  ctx.fillStyle=e.col||'#4a3a2a';
+  ctx.fillRect(e.x-4,e.y-e.h,8,e.h);
+  // Lantern on pole
+  ctx.fillStyle='rgba(245,200,100,0.8)';
+  ctx.beginPath(); ctx.arc(e.x,e.y-e.h,8,0,Math.PI*2); ctx.fill();
+  // Glow
+  const g=ctx.createRadialGradient(e.x,e.y-e.h,0,e.x,e.y-e.h,25);
+  g.addColorStop(0,'rgba(245,200,66,0.25)'); g.addColorStop(1,'rgba(245,200,66,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(e.x,e.y-e.h,25,0,Math.PI*2); ctx.fill();
+}
+
+function drawGate(e){
+  if(e.gone) return;
+  if(e.isBridge){
+    // Bridge planks appear when unlocked
+    if(e.locked){
+      ctx.fillStyle='rgba(80,50,20,0.9)'; ctx.fillRect(e.x-e.w/2,e.y-6,e.w,12);
+      ctx.fillStyle='#ff4444'; ctx.font='bold 11px system-ui'; ctx.textAlign='center';
+      ctx.fillText('LOCKED',e.x,e.y+4);
+    } else {
+      ctx.fillStyle='#a07040'; ctx.fillRect(e.x-e.w/2,e.y-8,e.w,16);
+    }
+  } else {
+    const gx=e.x-e.w/2, gy=e.y-e.h/2;
+    ctx.fillStyle=e.locked?'#a03020':'#40a030';
+    ctx.fillRect(gx,gy+(!e.opening?0:-(e.opening?e.h*.8:0)),e.w,e.h);
+    ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=2; ctx.strokeRect(gx,gy,e.w,e.h);
+    if(e.locked){
+      ctx.fillStyle='#f5c842'; ctx.font='bold 14px system-ui'; ctx.textAlign='center';
+      ctx.fillText('🔒',e.x,e.y+5);
+    }
+  }
+  ctx.textAlign='left';
+}
+
+function drawRuin(e){
+  ctx.fillStyle=e.col||'#7a7060';
+  ctx.fillRect(e.x,e.y,e.w,e.h);
+  // Top crumbled edge
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  for(let i=0;i<e.w;i+=12){
+    ctx.fillRect(e.x+i,e.y,6,4+Math.sin(i)*3);
+  }
+}
+
+function drawSteps(e){
+  for(let i=0;i<(e.n||5);i++){
+    ctx.fillStyle=e.col||'#9a9080';
+    ctx.fillRect(e.x-i*5,e.y+i*14,60+i*10,14);
+    ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1; ctx.strokeRect(e.x-i*5,e.y+i*14,60+i*10,14);
+  }
+}
+
+function drawLighthouse(e){
+  // Base
+  ctx.fillStyle='#8a8070'; ctx.fillRect(e.x-e.w/2,e.y+e.h*.6,e.w,e.h*.4);
+  // Tower
+  ctx.fillStyle=e.col||'#d4c4a0';
+  ctx.beginPath();
+  ctx.moveTo(e.x-e.w/2,e.y+e.h*.6);
+  ctx.lineTo(e.x-e.w*.3,e.y);
+  ctx.lineTo(e.x+e.w*.3,e.y);
+  ctx.lineTo(e.x+e.w/2,e.y+e.h*.6);
+  ctx.closePath(); ctx.fill();
+  // Stripes
+  ctx.fillStyle='rgba(180,50,50,0.5)';
+  ctx.fillRect(e.x-e.w*.3,e.y+e.h*.15,e.w*.6,18);
+  ctx.fillRect(e.x-e.w*.32,e.y+e.h*.4,e.w*.64,18);
+  // Top cap
+  ctx.fillStyle='#4a4030'; ctx.fillRect(e.x-e.w*.35,e.y-8,e.w*.7,12);
+  // Light room
+  ctx.fillStyle=e.light||'#f5c842';
+  const pulse=0.7+0.3*Math.sin(Date.now()/400);
+  ctx.globalAlpha=pulse;
+  ctx.beginPath(); ctx.arc(e.x,e.y,e.w*.3,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1;
+  // Light beam (loc 3 when beacon lit)
+  if(beaconLit){
+    const beam=ctx.createRadialGradient(e.x,e.y,0,e.x,e.y,300);
+    beam.addColorStop(0,'rgba(255,220,80,0.35)'); beam.addColorStop(1,'rgba(255,220,80,0)');
+    ctx.fillStyle=beam;
+    ctx.save(); ctx.beginPath();
+    ctx.moveTo(e.x,e.y);
+    ctx.arc(e.x,e.y,300,-0.5,0.5);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  // Windows
+  ctx.fillStyle='rgba(245,200,100,0.6)';
+  ctx.fillRect(e.x-6,e.y+e.h*.2,12,18);
+  ctx.fillRect(e.x-6,e.y+e.h*.45,12,18);
+}
+
+function drawPlate(e){
+  ctx.fillStyle=e.activated?'#44ffaa':'rgba(150,200,255,0.7)';
+  ctx.beginPath(); ctx.ellipse(e.x,e.y,22,10,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.ellipse(e.x,e.y,22,10,0,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle=e.activated?'#00cc66':'rgba(80,150,200,0.9)';
+  ctx.font='bold 11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(e.label,e.x,e.y);
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+}
+
+function drawGlowLantern(e){
+  const t=Date.now()/600;
+  const intensity=0.6+0.4*Math.sin(t);
+  const g=ctx.createRadialGradient(e.x,e.y,0,e.x,e.y,40);
+  g.addColorStop(0,e.col+'cc'); g.addColorStop(1,e.col+'00');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(e.x,e.y,40,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=e.col;
+  ctx.globalAlpha=intensity;
+  ctx.fillRect(e.x-6,e.y-12,12,18); // body
+  ctx.fillStyle='rgba(255,255,255,0.7)';
+  ctx.fillRect(e.x-3,e.y-10,6,8);
+  ctx.globalAlpha=1;
+}
+
+function drawLanternObj(e){
+  if(e.collected) return;
+  const bob=Math.sin(Date.now()/700)*5;
+  const gx=e.x, gy=e.y+bob;
+  // Glow
+  const g=ctx.createRadialGradient(gx,gy,0,gx,gy,35);
+  g.addColorStop(0,e.col+'88'); g.addColorStop(1,e.col+'00');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(gx,gy,35,0,Math.PI*2); ctx.fill();
+  // Handle
+  ctx.strokeStyle='#8a6010'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(gx,gy-20,7,Math.PI,0); ctx.stroke();
+  // Body
+  ctx.fillStyle=e.golden?'#ffd700':'#d4801a';
+  ctx.strokeStyle='#8a5000'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(gx-9,gy-16,18,28,4); ctx.fill(); ctx.stroke();
+  // Glass
+  ctx.fillStyle='rgba(255,240,100,0.9)';
+  ctx.fillRect(gx-5,gy-12,10,16);
+  // Inner light
+  ctx.fillStyle='rgba(255,255,255,0.5)';
+  ctx.fillRect(gx-2,gy-9,4,6);
+  // Golden star
+  if(e.golden){
+    ctx.fillStyle='#fff700'; ctx.font='10px system-ui'; ctx.textAlign='center';
+    ctx.fillText('★',gx,gy-28);
+    ctx.textAlign='left';
+  }
+}
+
+function drawBeacon(e){
+  if(!e) return;
+  // Beacon platform
+  ctx.fillStyle='#6a5a40';
+  ctx.beginPath(); ctx.ellipse(e.x,e.y,35,14,0,0,Math.PI*2); ctx.fill();
+  // Unlit bowl
+  if(!e.lit){
+    ctx.fillStyle='#4a3a20';
+    ctx.beginPath(); ctx.arc(e.x,e.y-5,22,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#8a7040'; ctx.font='bold 11px system-ui'; ctx.textAlign='center';
+    ctx.fillText('Light Me',e.x,e.y+20); ctx.textAlign='left';
+  } else {
+    // Lit beacon
+    const t=Date.now()/300;
+    const g=ctx.createRadialGradient(e.x,e.y-5,0,e.x,e.y-5,80);
+    g.addColorStop(0,'rgba(255,180,50,0.9)'); g.addColorStop(0.5,'rgba(255,100,20,0.5)'); g.addColorStop(1,'rgba(255,50,0,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(e.x,e.y-5,80,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ff8c42'; ctx.font='bold 28px system-ui'; ctx.textAlign='center';
+    ctx.fillText('🔥',e.x,e.y+8); ctx.textAlign='left';
+  }
+}
+
+function drawSignObj(e){
+  // Small sign marker
+  ctx.fillStyle='#6a4020'; ctx.fillRect(e.x-3,e.y-30,6,30);
+  ctx.fillStyle='#c08050'; ctx.fillRect(e.x-20,e.y-42,40,16);
+  ctx.strokeStyle='#8a5020'; ctx.lineWidth=1.5; ctx.strokeRect(e.x-20,e.y-42,40,16);
+  ctx.fillStyle='#2a1000'; ctx.font='bold 9px system-ui'; ctx.textAlign='center';
+  ctx.fillText('📜',e.x,e.y-28); ctx.textAlign='left';
+}
+
+function drawPlayer(){
+  const px=player.x, py=player.y;
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(px,py+player.radius*.8,player.radius*.9,player.radius*.4,0,0,Math.PI*2); ctx.fill();
+  // Body (simple low-poly traveller)
+  // Cloak
+  ctx.save();
+  ctx.translate(px,py); ctx.rotate(player.facing+Math.PI/2);
+  ctx.fillStyle='#3a2060';
+  ctx.beginPath();
+  ctx.moveTo(-10,16); ctx.lineTo(0,-18); ctx.lineTo(10,16); ctx.closePath(); ctx.fill();
+  // Hood
+  ctx.fillStyle='#5a3090';
+  ctx.beginPath(); ctx.arc(0,-12,10,0,Math.PI*2); ctx.fill();
+  // Face
+  ctx.fillStyle='#d4a070';
+  ctx.beginPath(); ctx.arc(0,-14,6,0,Math.PI*2); ctx.fill();
+  // Lantern glow on player
+  ctx.restore();
+  const g=ctx.createRadialGradient(px,py,0,px,py,30);
+  g.addColorStop(0,'rgba(245,200,66,0.18)'); g.addColorStop(1,'rgba(245,200,66,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,30,0,Math.PI*2); ctx.fill();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UI FUNCTIONS
+// ═══════════════════════════════════════════════════════════
+function startGame(){
+  getACtx();
+  GS.lanterns=0; GS.golden=0; GS.notes=0;
+  GS.collected=new Set(); GS.journal=[];
+  GS.startTime=Date.now();
+  GS.running=true; GS.paused=false;
+  GS.lastHintTime=Date.now();
+  document.getElementById('wisp').style.display='block';
+  hideAllScreens();
+  showHUD();
+  loadLocation(1);
+  fadeIn();
+}
+
+function hideAllScreens(){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
+  document.getElementById('notePanel').classList.add('hidden');
+}
+
+function togglePause(){
+  if(!GS.running) return;
+  GS.paused=!GS.paused;
+  if(GS.paused){
+    showScreen('pauseScreen');
+    document.getElementById('pauseBtn').textContent='▶';
+  } else {
+    hideAllScreens();
+    showHUD();
+    document.getElementById('pauseBtn').textContent='⏸';
+    lastTime=performance.now();
+  }
+}
+
+function restartLocation(){
+  GS.paused=false;
+  // Remove this location's collectibles from collected set so they reappear
+  [...GS.collected].forEach(id=>{
+    if(id.startsWith('l'+GS.location+'_')) GS.collected.delete(id);
+  });
+  GS.lanterns=Math.max(0,GS.lanterns-3);
+  fadeOut(()=>{
+    hideAllScreens(); showHUD();
+    loadLocation(GS.location);
+    fadeIn();
+    lastTime=performance.now();
+  });
+}
+
+function goToMenu(){
+  GS.running=false; GS.paused=false;
+  document.getElementById('wisp').style.display='none';
+  fadeOut(()=>{ hideHUD(); showScreen('menuScreen'); fadeIn(); });
+}
+
+function showNote(title,body){
+  document.getElementById('noteTitle').textContent=title;
+  document.getElementById('noteBody').textContent=body;
+  document.getElementById('notePanel').classList.remove('hidden');
+  GS.paused=true;
+}
+
+function closeNote(){
+  document.getElementById('notePanel').classList.add('hidden');
+  GS.paused=false;
+  lastTime=performance.now();
+}
+
+function openJournal(){
+  const list=document.getElementById('journalList');
+  list.innerHTML='';
+  if(GS.journal.length===0){
+    list.innerHTML='<div style="color:#8a7060;text-align:center;padding:1em">No notes collected yet.</div>';
+  } else {
+    GS.journal.forEach(e=>{
+      const div=document.createElement('div');
+      div.className='journal-entry';
+      div.innerHTML=`<h3>${e.title}</h3><p>${e.body}</p>`;
+      list.appendChild(div);
+    });
+  }
+  showScreen('journalScreen');
+}
+
+function closeJournal(){
+  showScreen('pauseScreen');
+}
+
+function showEnding(){
+  GS.running=false;
+  const elapsed=Math.floor((Date.now()-GS.startTime)/1000);
+  const mins=Math.floor(elapsed/60), secs=elapsed%60;
+  const stars=GS.golden>=3?3:GS.golden>=2?3:GS.golden>=1?2:1;
+  document.getElementById('starDisplay').textContent='⭐'.repeat(stars)+'☆'.repeat(3-stars);
+  document.getElementById('statLanterns').textContent=GS.lanterns;
+  document.getElementById('statGolden').textContent=GS.golden;
+  document.getElementById('statNotes').textContent=GS.notes;
+  document.getElementById('statTime').textContent=`${mins}:${secs.toString().padStart(2,'0')}`;
+  saveResult({stars,lanterns:GS.lanterns,golden:GS.golden,notes:GS.notes,elapsed});
+  fadeOut(()=>{ hideHUD(); document.getElementById('wisp').style.display='none'; showScreen('endingScreen'); fadeIn(); });
+}
+
+function updateHUD(){
+  document.getElementById('objText').textContent=world?.objective||'';
+}
+
+function triggerHint(){
+  if(!world || GS.objectiveDone) return;
+  let target=null;
+  if(GS.location===1) target=world.entities.find(e=>e.type==='lantern'&&!e.collected&&!e.golden);
+  if(GS.location===2) target=world.entities.find(e=>e.type==='plate'&&!e.activated);
+  if(GS.location===3) target=world.entities.find(e=>e.type==='beacon');
+  if(!target && GS.objectiveDone) target=world.entities.find(e=>e.type==='gate'&&!e.locked&&!e.gone);
+  if(target){ setWispTarget(target); wispFollowing=true; setTimeout(()=>wispFollowing=false,4000); }
+}
+
+function setWispTarget(e){ wispTarget=e; }
+
+function quitGame(){
+  if(confirm('Exit the game?')) window.close();
+}
+
+// ── Settings ─────────────────────────────────────────────
+function applySettings(){
+  SET.music=parseFloat(document.getElementById('musicVol').value);
+  SET.sfx  =parseFloat(document.getElementById('sfxVol').value);
+}
+function toggleVib(){
+  SET.vibration=!SET.vibration;
+  document.getElementById('vibToggle').textContent=SET.vibration?'ON':'OFF';
+  document.getElementById('vibToggle').classList.toggle('on',SET.vibration);
+}
+function toggleHand(){
+  SET.leftHand=!SET.leftHand;
+  document.getElementById('handToggle').textContent=SET.leftHand?'ON':'OFF';
+  document.getElementById('handToggle').classList.toggle('on',SET.leftHand);
+  const ctrl=document.getElementById('controls');
+  ctrl.style.flexDirection=SET.leftHand?'row-reverse':'row';
+}
+function saveSettings(){
+  localStorage.setItem('ltSettings',JSON.stringify(SET));
+}
+function loadSettings(){
+  try{
+    const s=JSON.parse(localStorage.getItem('ltSettings')||'{}');
+    Object.assign(SET,s);
+  }catch(e){}
+  document.getElementById('musicVol').value=SET.music;
+  document.getElementById('sfxVol').value=SET.sfx;
+  document.getElementById('vibToggle').textContent=SET.vibration?'ON':'OFF';
+  document.getElementById('vibToggle').classList.toggle('on',SET.vibration);
+  document.getElementById('handToggle').textContent=SET.leftHand?'ON':'OFF';
+  document.getElementById('handToggle').classList.toggle('on',SET.leftHand);
+  if(SET.leftHand) document.getElementById('controls').style.flexDirection='row-reverse';
+}
+
+// ── Save/Load best result ────────────────────────────────
+function saveResult(r){
+  try{
+    const prev=JSON.parse(localStorage.getItem('ltBest')||'{}');
+    if(!prev.stars || r.stars>prev.stars || (r.stars===prev.stars && r.elapsed<(prev.elapsed||9999))){
+      localStorage.setItem('ltBest',JSON.stringify(r));
+    }
+  }catch(e){}
+}
+
+// ── Audio (simple beep placeholders via Web Audio API) ────
+let _actx=null;
+function getACtx(){
+  if(!_actx){
+    try{
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) _actx = new AC();
+    }catch(e){}
+  }
+  if(_actx && _actx.state === 'suspended'){
+    _actx.resume().catch(()=>{});
+  }
+  return _actx;
+}
+
+function beep(freq,dur,vol,type='sine'){
+  const ac=getACtx(); if(!ac) return;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.connect(g); g.connect(ac.destination);
+  o.type=type; o.frequency.setValueAtTime(freq,ac.currentTime);
+  g.gain.setValueAtTime((vol||0.3)*SET.sfx,ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+dur);
+  o.start(ac.currentTime); o.stop(ac.currentTime+dur);
+}
+
+function playCollectSound(){ beep(880,.12,.4); setTimeout(()=>beep(1100,.15,.3),80); }
+function playUnlockSound() { beep(440,.12,.3); setTimeout(()=>beep(660,.15,.3),100); setTimeout(()=>beep(880,.25,.35),220); }
+
+function vibrate(ms=80){
+  if(SET.vibration && navigator.vibrate) navigator.vibrate(ms);
+}
+
+// ── Android back button (handled above in keydown) ───────
+
+// ── roundRect polyfill (for older Chromium on Android) ──
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
+    r=Math.min(r,w/2,h/2);
+    this.beginPath();
+    this.moveTo(x+r,y);
+    this.lineTo(x+w-r,y); this.arcTo(x+w,y,x+w,y+r,r);
+    this.lineTo(x+w,y+h-r); this.arcTo(x+w,y+h,x+w-r,y+h,r);
+    this.lineTo(x+r,y+h); this.arcTo(x,y+h,x,y+h-r,r);
+    this.lineTo(x,y+r); this.arcTo(x,y,x+r,y,r);
+    this.closePath();
+  };
+}
+
+// ── PWA Service Worker & Install ────────────────────────
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('pwaInstallBtn');
+  if(btn) btn.style.display = 'block';
+});
+
+function installPWA(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(()=>{
+      deferredPrompt = null;
+      const btn = document.getElementById('pwaInstallBtn');
+      if(btn) btn.style.display = 'none';
+    });
+  } else {
+    alert('To install on Android:\n1. Open Chrome menu (⋮)\n2. Tap "Add to Home screen" or "Install app".');
+  }
+}
+
+if('serviceWorker' in navigator && location.protocol !== 'file:'){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────
+showScreen('menuScreen');
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
