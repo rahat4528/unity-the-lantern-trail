@@ -55,6 +55,7 @@
 | **8.0-a** | Orientation: Landscape only | `ProjectSettings.asset` | Config check | Done | `defaultScreenOrientation: 3` (Landscape) |
 | **8.0-b** | Package Name: `com.wandererstudios.lanterntrail` | `ProjectSettings.asset` | Config check | Done | Set in PlayerSettings |
 | **8.0-c** | Target Android SDK 34, Min SDK 24 | `ProjectSettings.asset` | Config check | Done | API levels configured |
+| **8.0-d** | Native Android APK binary output | Local workstation | Batch build command | Blocked | Unity Editor and Android NDK/SDK not installed on host machine; BuildScript ready |
 | **11.0-a** | Complete Unity project structure with scenes, scripts, assets | `Assets/_Project/` | Directory audit | Done | All folders and scripts in place |
 | **11.0-b** | Documentation: `README.md`, `TEST_REPORT.md`, `KNOWN_ISSUES.md`, `ASSET_CREDITS.md` | Root directory | File inspection | Done | Detailed, honest documents created |
 | **11.0-c** | Automated tests (EditMode, PlayMode, FullRunSmokeTest) | `Assets/_Project/Tests/` | Source code audit | Done | 8 comprehensive automated test suites |
